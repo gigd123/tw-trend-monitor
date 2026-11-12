@@ -13,6 +13,7 @@
     twtm signals recent                       # 最近的訊號
     twtm risk show                            # 價格趨勢轉弱程度
     twtm backtest run                         # 減碼回測 → reports/<版本>/
+    twtm backtest hedge                       # 期貨避險回測 → reports/hedge-v1/
     twtm forward record | show                # 前向紀錄
     twtm daily                                # 每日流程（排程用）
 """
@@ -204,6 +205,25 @@ def cmd_backtest(args, conn) -> int:
     return 0
 
 
+def cmd_hedge(args, conn) -> int:
+    from pathlib import Path
+    from .backtest.hedge_report import render
+    from .backtest.hedge_study import run_hedge_study
+    from .signals import load_config
+
+    cfg = load_config(args.config)
+    if args.sims is not None:
+        cfg["hedge"]["random_sims"] = args.sims
+    for sym in args.symbol or cfg["hedge"]["symbols"]:
+        name = conn.execute("SELECT name FROM instrument WHERE symbol=?", (sym,)).fetchone()
+        st = run_hedge_study(conn, sym, cfg)
+        out = Path(args.out_dir) / cfg["hedge"]["version"] / f"{sym.lower()}.md"
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(render(st, name["name"] if name else sym), encoding="utf-8")
+        print(f"已寫入 {out}", flush=True)
+    return 0
+
+
 def cmd_risk_show(args, conn) -> int:
     from .risk.levels import price_weakness
     from .signals import load_config
@@ -342,6 +362,12 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--sims", type=int, help="隨機警報模擬次數（預設依設定檔）")
     p.add_argument("--out-dir", default="reports")
     p.set_defaults(func=cmd_backtest)
+    p = bt.add_parser("hedge", help="期貨避險回測 → reports/<版本>/<標的>.md")
+    p.add_argument("--symbol", action="append", choices=["TAIEX", "TPEX"])
+    p.add_argument("--config")
+    p.add_argument("--sims", type=int)
+    p.add_argument("--out-dir", default="reports")
+    p.set_defaults(func=cmd_hedge)
 
     rk = sub.add_parser("risk", help="風險分數").add_subparsers(dest="cmd", required=True)
     p = rk.add_parser("show", help="價格趨勢轉弱程度")
