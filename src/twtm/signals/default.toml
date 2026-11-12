@@ -70,18 +70,22 @@ slope_days = 3
 persist_days = 5           # 「趨勢惡化」：A、B、C 同時成立連續 5 日
 
 # ---------- 減碼回測 ----------
+# bt-v2（2026-11-13 事先登記，見 docs/mvp-spec-v1.2.md §6.7）：
+#   訊號定義（pw-v1）不變，只改使用方式——初步轉弱維持滿倉，明顯轉弱以上才減碼。
+#   bt-v1 設定凍結於 bt-v1.toml。
 [backtest]
-version = "bt-v1"
-initial_weights = [0.8, 0.7, 0.6]   # 初步轉弱時的持股比例
-strong_weights = [0.6, 0.4, 0.2]    # 明顯轉弱（含趨勢惡化）時的持股比例
+version = "bt-v2"
+initial_weights = [1.0]             # 初步轉弱：維持滿倉（bt-v1 發現單一訊號大多是雜訊）
+strong_weights = [0.8, 0.7, 0.6]    # 明顯轉弱（含趨勢惡化）時的持股比例（不測 20%）
 restore_rules = ["score3", "above_ma20", "above_ma20_ma5up"]
-restore_days = 3                    # score3：轉弱程度連續 3 日低於目前減碼層級
-cost = 0.003                        # 每次調整：調整比例 × 單邊成本
+restore_days = 3
+cost = 0.003                        # 主要情境：賣股票
+cost_scenarios = [0.003, 0.0005]    # 股票 0.3%；期貨避險 0.05%（只改成本，未模擬價差與轉倉）
 cost_sensitivity = [0.001, 0.005]
-fixed_weight = 0.7                  # 比較基準：全程固定持股
-ma_rule_window = 60                 # 比較基準：跌破 60 日線減碼
-selection_end = "2019-01-01"        # 選參期 2005–2018；之後只用來檢驗
-selection_metric = "calmar"         # 選參規則：選參期 年化報酬 / 最大回撤 最高者
+fixed_weight = 0.7
+ma_rule_window = 60
+selection_end = "2019-01-01"
+selection_metric = "calmar"
 random_sims = 1000
 seed = 20261113
-stress_drawdown = 0.15              # 大跌段：加權從高點回落 >= 15%
+stress_drawdown = 0.15
