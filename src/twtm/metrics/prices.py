@@ -75,7 +75,9 @@ TW_SYMBOLS_CALENDAR = ("TAIEX", "TPEX")
 BIG_MOVE = 0.105   # 台股漲跌幅限制 10%（2015-06 以前 7%），超過即疑似資料錯誤
 
 
-def check(conn: sqlite3.Connection, symbol: str, market: str, needs_turnover: bool) -> QualityReport:
+def check(conn: sqlite3.Connection, symbol: str, market: str, needs_turnover: bool,
+          close_only: bool = False) -> QualityReport:
+    """close_only：只有收盤價的序列（例如報酬指數），不檢查 OHLC 與成交值。"""
     rep = QualityReport(symbol)
     bars = load_bars(conn, symbol, adjust=True)
     if not bars:
@@ -91,6 +93,9 @@ def check(conn: sqlite3.Connection, symbol: str, market: str, needs_turnover: bo
         rep.missing_dates = sorted(cal - have)
 
     prev = None
+    if close_only:
+        rep.missing_ohlc = [b.trade_date for b in bars if b.close is None]
+        return rep
     for b in bars:
         if None in (b.open, b.high, b.low, b.close):
             rep.missing_ohlc.append(b.trade_date)

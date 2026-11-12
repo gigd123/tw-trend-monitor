@@ -88,6 +88,8 @@ def responder(call):
     url = call["url"]
     if "MI_5MINS_HIST" in url:
         return fixture_bytes("twse_taiex_ohlc_202611.json")
+    if "MFI94U" in url:
+        return fixture_bytes("twse_tr_index_202611.json")
     if "FMTQIK" in url:
         return fixture_bytes("twse_fmtqik_202611.json")
     if "STOCK_DAY" in url:
@@ -181,3 +183,9 @@ def test_tpex_trading_index_old_field_name():
     assert vol[0]["trade_date"] == "2005-01-03"
     assert vol[0]["volume"] == 428_236_000
     assert vol[0]["turnover"] == 9_042_274_000
+
+
+def test_twse_total_return_index():
+    rows = twse.parse_total_return_index(fixture_bytes("twse_tr_index_202611.json"), T)
+    assert rows[0]["symbol"] == "TAIEX_TR" and rows[0]["trade_date"] == "2026-11-02"
+    assert rows[0]["close"] > 0 and "open" not in rows[0]

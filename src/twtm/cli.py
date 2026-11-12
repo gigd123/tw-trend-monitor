@@ -113,9 +113,10 @@ def _sample(xs: list[str], n: int = 5) -> str:
 def cmd_prices_check(args, conn) -> int:
     ingest_prices.seed_instruments(conn)
     all_ok = True
-    for r in conn.execute("SELECT symbol, name, market FROM instrument ORDER BY market, symbol"):
+    for r in conn.execute("SELECT symbol, name, market, kind FROM instrument ORDER BY market, symbol"):
         rep = price_metrics.check(conn, r["symbol"], r["market"],
-                                  needs_turnover=r["market"] != "US")
+                                  needs_turnover=r["market"] != "US" and r["kind"] != "tr_index",
+                                  close_only=r["kind"] == "tr_index")
         all_ok &= rep.ok
         flag = "OK " if rep.ok else "NG "
         print(f"{flag}{r['symbol']:<6} {r['name']}：{rep.first} ~ {rep.last}，{rep.days} 日")

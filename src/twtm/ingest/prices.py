@@ -24,6 +24,7 @@ HISTORY_START = date(2005, 1, 1)
 INSTRUMENTS = [
     # symbol, name, kind, market, currency
     ("TAIEX", "發行量加權股價指數", "index", "TWSE", "TWD"),
+    ("TAIEX_TR", "發行量加權股價報酬指數（含息）", "tr_index", "TWSE", "TWD"),
     ("TPEX", "櫃買指數", "index", "TPEx", "TWD"),
     ("2330", "台積電", "stock", "TWSE", "TWD"),
     ("^SOX", "費城半導體指數", "index", "US", "USD"),
@@ -56,6 +57,9 @@ def datasets() -> list[Dataset]:
                 "price_daily", PRICE_KEY),
         Dataset("twse", "market_turnover", "TAIEX", HISTORY_START, None, m,
                 lambda f, s, e: twse.fetch_market_turnover(f, s), twse.parse_market_turnover,
+                "price_daily", PRICE_KEY),
+        Dataset("twse", "total_return", "TAIEX_TR", HISTORY_START, None, m,
+                lambda f, s, e: twse.fetch_total_return_index(f, s), twse.parse_total_return_index,
                 "price_daily", PRICE_KEY),
         Dataset("tpex", "index_ohlc", "TPEX", HISTORY_START, None, m,
                 lambda f, s, e: tpex.fetch_index_ohlc(f, s), tpex.parse_index_ohlc,

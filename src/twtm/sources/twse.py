@@ -83,6 +83,18 @@ def parse_index_ohlc(body: bytes, fetched_at: str) -> list[dict]:
     } for r in _rows(_payload(body), cols)]
 
 
+def parse_total_return_index(body: bytes, fetched_at: str) -> list[dict]:
+    """發行量加權股價報酬指數（含息，只有收盤）。存為標的 TAIEX_TR。"""
+    j = _payload(body)
+    if j is None:
+        return []
+    fields = [f.replace("\u3000", "").replace(" ", "").strip() for f in j.get("fields", [])]
+    if fields[:2] != ["日期", "發行量加權股價報酬指數"]:
+        raise ParseError(f"報酬指數欄位不符：{fields}")
+    return [{"symbol": "TAIEX_TR", "trade_date": roc_to_iso(r[0]), "close": num(r[1]),
+             "source": "twse", "fetched_at": fetched_at} for r in j.get("data", [])]
+
+
 def parse_market_turnover(body: bytes, fetched_at: str) -> list[dict]:
     cols = ["日期", "成交股數", "成交金額"]
     return [{
@@ -131,6 +143,11 @@ def _ymd(d: date) -> str:
 
 def fetch_index_ohlc(fetcher: Fetcher, month: date) -> bytes:
     return fetcher.request("twse", "GET", f"{BASE}/TAIEX/MI_5MINS_HIST",
+                           params={"date": _ymd(month), "response": "json"}).content
+
+
+def fetch_total_return_index(fetcher: Fetcher, month: date) -> bytes:
+    return fetcher.request("twse", "GET", f"{BASE}/TAIEX/MFI94U",
                            params={"date": _ymd(month), "response": "json"}).content
 
 
