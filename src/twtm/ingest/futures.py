@@ -87,39 +87,46 @@ def _run_chunk(conn, result: Result, *, source: str, dataset: str, key: str,
 
 def backfill_taifex(conn: sqlite3.Connection, fetcher: Fetcher, start: date, end: date,
                     *, products=tuple(PRODUCTS), force: bool = False,
-                    today: date | None = None) -> Result:
-    """從期交所回補（自動限制在 3 年視窗內）。"""
+                    today: date | None = None,
+                    datasets: tuple[str, ...] = ("institutional", "daily")) -> Result:
+    """從期交所回補。
+
+    - 三大法人部位：只能查最近 3 年（自動限制在視窗內）。
+    - 期貨每日行情：沒有 3 年限制，可從商品上市日起回補（2026-11-13 實測 2005 年可查）。
+    """
     today = today or today_taipei()
-    lo = max(start, taifex.window_start(today))
+    lo_inst = max(start, taifex.window_start(today))
     hi = min(end, today)
     result = Result()
-    if lo > hi:
-        result.stopped_reason = f"區間在期交所視窗（{taifex.window_start(today)} 起）之外"
-        return result
 
-    for chunk in year_chunks(lo, hi):
-        query = (max(chunk[0], lo), min(chunk[1], hi))
-        _run_chunk(
-            conn, result, source="taifex", dataset="institutional", key="*",
-            chunk=chunk, query=query, floor=taifex.window_start(today), force=force, today=today,
-            do_fetch=lambda s, e: (taifex.INST_URL, {"start": str(s), "end": str(e)},
-                                   taifex.fetch_institutional(fetcher, s, e, today)),
-            parse=taifex.parse_institutional, table="fut_institutional", pkey=INST_KEY,
-        )
-
-    for product in products:
-        listed = date.fromisoformat(PRODUCTS[product].listed)
-        for chunk in month_chunks(max(lo, listed), hi):
-            query = (max(chunk[0], lo, listed), min(chunk[1], hi))
+    if "institutional" in datasets and lo_inst <= hi:
+        for chunk in year_chunks(lo_inst, hi):
+            query = (max(chunk[0], lo_inst), min(chunk[1], hi))
             _run_chunk(
-                conn, result, source="taifex", dataset="daily", key=product,
-                chunk=chunk, query=query, floor=max(taifex.window_start(today), listed),
-                force=force, today=today,
-                do_fetch=lambda s, e, p=product: (
-                    taifex.DAILY_URL, {"product": p, "start": str(s), "end": str(e)},
-                    taifex.fetch_daily(fetcher, p, s, e)),
-                parse=taifex.parse_daily, table="fut_daily", pkey=DAILY_KEY,
+                conn, result, source="taifex", dataset="institutional", key="*",
+                chunk=chunk, query=query, floor=taifex.window_start(today), force=force,
+                today=today,
+                do_fetch=lambda s, e: (taifex.INST_URL, {"start": str(s), "end": str(e)},
+                                       taifex.fetch_institutional(fetcher, s, e, today)),
+                parse=taifex.parse_institutional, table="fut_institutional", pkey=INST_KEY,
             )
+
+    if "daily" in datasets:
+        for product in products:
+            listed = date.fromisoformat(PRODUCTS[product].listed)
+            lo = max(start, listed)
+            for chunk in month_chunks(lo, hi):
+                query = (max(chunk[0], lo), min(chunk[1], hi))
+                _run_chunk(
+                    conn, result, source="taifex", dataset="daily", key=product,
+                    chunk=chunk, query=query, floor=listed, force=force, today=today,
+                    do_fetch=lambda s, e, p=product: (
+                        taifex.DAILY_URL, {"product": p, "start": str(s), "end": str(e)},
+                        taifex.fetch_daily(fetcher, p, s, e)),
+                    parse=taifex.parse_daily, table="fut_daily", pkey=DAILY_KEY,
+                )
+    if not result.chunks_fetched and not result.chunks_skipped:
+        result.stopped_reason = "沒有需要回補的區間"
     return result
 
 

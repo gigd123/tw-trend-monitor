@@ -98,3 +98,14 @@ def test_institutional_today_unpublished_falls_back_to_yesterday(conn):
     assert ends == ["2026/11/12", "2026/11/11"]
     mtx = {p.trade_date: p for p in positions(conn, "MTX")}["2026-11-11"]
     assert mtx.complete
+
+
+def test_daily_quotes_are_not_limited_to_window(conn):
+    """期貨每日行情沒有 3 年限制；三大法人部位才有。"""
+    f = FakeFetcher(taifex_responder)
+    ingest.backfill_taifex(conn, f, date(2020, 1, 1), date(2024, 1, 31), products=("MTX",),
+                           today=TODAY)
+    inst = [c for c in f.calls if c["url"] == taifex.INST_URL]
+    daily = [c for c in f.calls if c["url"] == taifex.DAILY_URL]
+    assert inst[0]["queryStartDate"] == "2023/11/13"
+    assert daily[0]["queryStartDate"] == "2020/01/01"

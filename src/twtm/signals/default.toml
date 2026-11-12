@@ -91,3 +91,20 @@ data_end = "2026-11-11"             # 研究資料截止日；2026-11-12 起保�
 random_sims = 1000
 seed = 20261113
 stress_drawdown = 0.15
+
+# ---------- 期貨避險回測（hedge-v1，2026-11-13 事先登記，見 mvp-spec-v1.2 §6.8） ----------
+[hedge]
+version = "hedge-v1"
+futures = "TX"                      # 臺股期貨（小台、微台價格相同，只差契約大小）
+hedge_ratios = [0.2, 0.3, 0.4]      # 明顯轉弱時放空的期貨名目 / 組合市值（＝淨曝險 80/70/60%）
+restore_rules = ["score3", "above_ma20", "above_ma20_ma5up"]
+restore_days = 3
+cost = 0.0005                       # 期貨每次建倉、平倉（含轉倉兩腳）的單邊成本，佔名目
+cost_sensitivity = [0.0002, 0.001]
+selection_end = "2019-01-01"
+selection_metric = "calmar"
+data_end = "2026-11-11"
+random_sims = 1000
+seed = 20261114
+stress_drawdown = 0.15
+symbols = ["TAIEX", "TPEX"]         # TAIEX：直接避險；TPEX：以台指期交叉避險（有避險誤差）

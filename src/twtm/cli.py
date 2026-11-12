@@ -47,8 +47,9 @@ def cmd_backfill(args, conn) -> int:
     products = tuple(args.product) if args.product else tuple(PRODUCTS)
     if args.source == "taifex":
         start = args.start or taifex.window_start(today)
+        datasets = tuple(args.dataset) if args.dataset else ("institutional", "daily")
         res = ingest.backfill_taifex(conn, Fetcher(), start, args.end or today,
-                                     products=products, force=args.force)
+                                     products=products, force=args.force, datasets=datasets)
     else:
         if not args.start:
             print("FinMind 回補需要 --start", file=sys.stderr)
@@ -284,6 +285,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--end", type=_date)
     p.add_argument("--product", action="append", choices=list(PRODUCTS))
     p.add_argument("--force", action="store_true", help="忽略已完成紀錄，重新抓取")
+    p.add_argument("--dataset", action="append", choices=["institutional", "daily"],
+                   help="限定資料集（期貨每日行情可回補到上市日；法人部位只有 3 年）")
     p.set_defaults(func=cmd_backfill)
 
     p = fut.add_parser("show", help="顯示指標")
