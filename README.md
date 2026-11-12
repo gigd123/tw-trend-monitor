@@ -2,7 +2,7 @@
 
 個人使用的台股多空趨勢與資金風險監控系統。透過短、中、長線市場指標，辨識台股趨勢轉弱的早期訊號，協助管理持股水位。
 
-目前階段：**Phase 1（價格資料）**。期貨籌碼模組已完成；下一步是 Phase 2 訊號研究。開發規格見 [docs/mvp-spec-v1.2.md](docs/mvp-spec-v1.2.md)。
+目前階段：**Phase 2 訊號研究**。價格資料（2005 起）與期貨籌碼已完成；第一批訊號研究結果見 [reports/gap-research-summary.md](reports/gap-research-summary.md)。開發規格見 [docs/mvp-spec-v1.2.md](docs/mvp-spec-v1.2.md)。
 
 ## 文件
 
