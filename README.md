@@ -2,7 +2,7 @@
 
 個人使用的台股多空趨勢與資金風險監控系統。透過短、中、長線市場指標，辨識台股趨勢轉弱的早期訊號，協助管理持股水位。
 
-目前階段：**Phase 2 訊號研究**。價格資料（2005 起）與期貨籌碼已完成；第一批訊號研究結果見 [reports/gap-research-summary.md](reports/gap-research-summary.md)。開發規格見 [docs/mvp-spec-v1.2.md](docs/mvp-spec-v1.2.md)。
+目前階段：**Phase 2 訊號研究**。價格資料（2005 起）與期貨籌碼已完成；最新研究結果見 [reports/phase2-round2-summary.md](reports/phase2-round2-summary.md)。開發規格見 [docs/mvp-spec-v1.2.md](docs/mvp-spec-v1.2.md)。
 
 ## 文件
 
@@ -32,15 +32,25 @@ twtm prices check                # 品質檢查：缺交易日、缺 OHLC、高�
 
 ## 訊號研究（Phase 2）
 
-第一批：高檔跳空向下系列（定義見 [mvp-spec-v1.2 §4](docs/mvp-spec-v1.2.md)）。參數在 `src/twtm/signals/default.toml`，改參數要同時改 `version`。
+三個訊號系列（定義見 [mvp-spec-v1.2 §4、§4A、§4B](docs/mvp-spec-v1.2.md)）：
+
+| 系列 | 版本 | 內容 |
+|---|---|---|
+| `gap` | gap-v2 | 高檔跳空向下 |
+| `ma` | ma-v1 | 跌破均線、均線死叉、20 日線下彎、連續收低 |
+| `breakout` | fb-v1 | 假突破、二次創高假突破、假突破後跳空 |
+
+參數在 `src/twtm/signals/default.toml`；改參數要升級該系列的 `version`，舊版設定另存凍結（如 `gap-v1.toml`）。
 
 ```bash
-twtm research gaps --symbol TAIEX --out reports/gap-research-taiex.md   # 事件研究報告
-twtm signals compute             # 計算訊號，寫入 signal_event
+twtm research run --family ma    # 研究報告 → reports/<版本>/<標的>.md（gap | ma | breakout）
+twtm research run --family gap --config src/twtm/signals/gap-v1.toml   # 重現舊版
+twtm signals compute             # 計算所有系列的訊號，寫入 signal_event
 twtm signals recent --days 30    # 最近的訊號
 ```
 
-研究報告列出每個變體在探索期（2005–2018）與驗證期（2019–）的表現，判定規則在看結果前固定。
+研究以「訊號後 20 日內回檔 ≥ 4 ATR 的機率」判定（research-v2）：訊號是警訊，不是預測下跌。
+每個變體分探索期（2005–2018）與驗證期（2019–）比較，判定規則在看結果前固定。
 
 ## 期貨籌碼
 

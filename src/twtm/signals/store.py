@@ -37,7 +37,7 @@ def save_events(conn: sqlite3.Connection, scope: str, symbol: str, events: pd.Da
                 continue
             detail = {c: _clean(e.get(c)) for c in DETAIL_COLS if c in e}
             rows.append((scope, symbol, v.id, version, sig.date().isoformat(),
-                         anchor.date().isoformat(), _clean(e["gap_atr"]),
+                         anchor.date().isoformat(), _clean(e.get("strength")),
                          json.dumps(detail, ensure_ascii=False), now))
     conn.execute("DELETE FROM signal_event WHERE scope=? AND symbol=? AND rule_version=?",
                  (scope, symbol, version))

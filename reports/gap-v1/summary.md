@@ -2,8 +2,8 @@
 
 - 日期：2026-11-12
 - 資料：2005-01-03 ~ 2026-11-11（5,372 個交易日），參數版本 `gap-v1`
-- 完整報告：[加權指數](gap-research-taiex.md)、[櫃買指數](gap-research-tpex.md)
-- 判定規則與變體清單在看結果前固定（[mvp-spec-v1.2 §4](../docs/mvp-spec-v1.2.md)）
+- 完整報告：[加權指數](taiex.md)、[櫃買指數](tpex.md)
+- 判定規則與變體清單在看結果前固定（[mvp-spec-v1.2 §4](../../docs/mvp-spec-v1.2.md)）
 
 ---
 

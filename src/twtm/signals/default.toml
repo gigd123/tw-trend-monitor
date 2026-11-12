@@ -1,7 +1,6 @@
-# 訊號與研究參數（mvp-spec-v1.2 §4）。
-# 修改任何數值都要同時更新 version，研究報告與 signal_event 會記錄使用的版本。
-
-version = "gap-v1"
+# 訊號與研究參數（mvp-spec-v1.2 §4、§4A、§4B）。
+# 修改任何系列的參數，都要同時升級該系列的 version；
+# 研究報告與 signal_event 會記錄使用的版本，舊版設定檔另存凍結（例如 gap-v1.toml）。
 
 [common]
 atr_n = 20                 # ATR 天數
@@ -11,20 +10,48 @@ lookback = 60              # 高低區間天數（至 t-1）
 quantile = 0.8             # 收盤位於區間上方 20%
 near_high = 0.05           # 或距區間最高價 5% 以內
 
+# ---------- 高檔跳空向下 ----------
 [gap]
+version = "gap-v2"         # v2：量能改用百分位門檻
 size_bins = [0.5, 1.0]     # 跳空幅度分組（ATR）：<0.5、0.5–1、>=1
 unfilled_days = [3, 5]     # 缺口未回補天數
 volume_n = 20              # 均量天數（至 t-1）
-volume_ratio = 1.5         # 量能放大門檻
+volume_mode = "percentile" # 量比在過去 volume_lookback 日中的百分位 >= volume_pct
+volume_lookback = 750      # 約 3 年
+volume_pct = 0.8
 
 [intl]
 symbol = "^SOX"
 atr_mult = 1.5             # 前一美股交易日報酬 <= -1.5 倍 ATR%
 ma = 20                    # 或收盤 < 20 日均線
 
+# ---------- 跌破均線系列 ----------
+[ma]
+version = "ma-v1"
+windows = [5, 10, 20]      # 跌破 N 日線
+hold_days = 3              # 跌破後連續 N 日站不回
+slope_days = 3             # 20 日線下彎：今天 < N 日前
+down_streak = 3            # 連續收低天數
+uptrend_long = 60          # 「多頭中」：t-1 的 20 日線 > 60 日線
+
+# ---------- 假突破 ----------
+[breakout]
+version = "fb-v1"
+lookback = 60              # 「創高」＝突破前 60 日最高價
+lookback_long = 250        # 長期版：前 250 日最高價
+fail_days = 3              # 收盤突破後 N 日內收回突破前高點以下 → 突破失敗
+retest_gap = 10            # 二次創高：被突破的高點至少是 N 日前形成
+retest_pullback_atr = 2.0  # 且之間曾回落 >= 2 ATR
+gap_within = 10            # 假突破後 N 日內出現向下跳空
+
+# ---------- 研究方法 ----------
 [research]
+version = "research-v2"    # v2：主要判定改為「20 日內大回檔機率」
+verdict_metric = "drawdown"
 horizons = [1, 3, 5, 10, 20]
-mae_days = 20              # 最大不利跌幅觀察天數
+mae_days = 20              # 回檔觀察天數
+dd_atr = 4.0               # 主要：20 日內最低價 <= 訊號日收盤 − 4 ATR（基準約 26–30%）
+dd_pct = 0.05              # 輔助：20 日內回檔 >= 5%
 decluster_days = 20        # 去除後續 20 日內的重複訊號
 min_events = 15            # 少於此數只列出、不下結論
 split_date = "2019-01-01"  # 探索期 / 驗證期

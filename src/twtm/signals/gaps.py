@@ -45,8 +45,12 @@ def gap_events(f: pd.DataFrame, cfg: dict, peer: pd.DataFrame | None = None,
     lo_bin, hi_bin = cfg["gap"]["size_bins"]
     g["size_bin"] = np.select([g["gap_atr"] < lo_bin, g["gap_atr"] < hi_bin],
                               ["small", "mid"], "large")
-    g["vol_up"] = (g["vol_ratio"] >= cfg["gap"]["volume_ratio"]).astype("boolean")
-    g.loc[g["vol_ratio"].isna(), "vol_up"] = pd.NA
+    if cfg["gap"].get("volume_mode", "ratio") == "percentile":
+        vcol, thr = "vol_pct", cfg["gap"]["volume_pct"]
+    else:
+        vcol, thr = "vol_ratio", cfg["gap"]["volume_ratio"]
+    g["vol_up"] = (g[vcol] >= thr).astype("boolean")
+    g.loc[g[vcol].isna(), "vol_up"] = pd.NA
 
     for k in cfg["gap"]["unfilled_days"]:
         sig = []
@@ -61,6 +65,7 @@ def gap_events(f: pd.DataFrame, cfg: dict, peer: pd.DataFrame | None = None,
         g[f"unfilled_{k}_date"] = sig
         g[f"unfilled_{k}_known"] = [idx[d] + k < len(f) for d in g.index]
 
+    g["strength"] = g["gap_atr"]
     if peer is not None:
         p = peer.reindex(g.index)
         sync = (p["gap_open"] | p["close_below_prev_low"]).astype("boolean")
@@ -95,7 +100,11 @@ def variants(cfg: dict) -> list[Variant]:
                 lambda g: hz(g) & g[f"unfilled_{k1}_date"].notna(), f"unfilled_{k1}_date"),
         Variant(f"V4b_unfilled{k2}", f"高檔跳空＋缺口 {k2} 日未回補（訊號日 t+{k2}）",
                 lambda g: hz(g) & g[f"unfilled_{k2}_date"].notna(), f"unfilled_{k2}_date"),
-        Variant("V5_volume", "高檔跳空＋量能放大", lambda g: hz(g) & t(g["vol_up"])),
+        Variant("V5_volume", "高檔跳空＋量能放大（" + (
+            f"量比百分位 ≥ {cfg['gap']['volume_pct']:.0%}"
+            if cfg["gap"].get("volume_mode") == "percentile"
+            else f"量比 ≥ {cfg['gap']['volume_ratio']}") + "）",
+            lambda g: hz(g) & t(g["vol_up"])),
         Variant("V6_peer_sync", "高檔跳空＋同日另一市場同步轉弱", lambda g: hz(g) & t(g.get("peer_sync", pd.Series(False, g.index)))),
         Variant("V7_intl_sync", "高檔跳空＋前一美股交易日費半轉弱", lambda g: hz(g) & t(g.get("intl_sync", pd.Series(False, g.index)))),
         Variant("V8_control", "對照：非高檔的開盤跳空", lambda g: ~hz(g)),

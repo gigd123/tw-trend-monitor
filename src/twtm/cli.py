@@ -8,7 +8,7 @@
     twtm prices backfill                      # 加權、櫃買、台積電、除權息、費半、Nasdaq（2005 起）
     twtm prices update                        # 每日更新
     twtm prices check                         # 資料品質檢查
-    twtm research gaps --symbol TAIEX         # 高檔跳空向下訊號研究報告
+    twtm research run --family ma             # 訊號研究（gap | ma | breakout）→ reports/<版本>/
     twtm signals compute                      # 計算訊號並寫入 signal_event
     twtm signals recent                       # 最近的訊號
 """
@@ -122,40 +122,41 @@ def cmd_prices_check(args, conn) -> int:
     return 0 if all_ok else 1
 
 
-def cmd_research_gaps(args, conn) -> int:
+def cmd_research(args, conn) -> int:
     from pathlib import Path
     from .signals import load_config
-    from .signals.gaps import variants
-    from .signals.pipeline import PEERS, build
+    from .signals.pipeline import PEERS, TITLES, build_family
     from .signals.report import render
     from .signals.research import run
 
     cfg = load_config(args.config)
-    name = conn.execute("SELECT name FROM instrument WHERE symbol=?", (args.symbol,)).fetchone()
-    f, events = build(conn, args.symbol, cfg)
-    results = run(f, events, variants(cfg), cfg)
-    md = render(args.symbol, name["name"] if name else args.symbol,
-                PEERS.get(args.symbol, "—"), f, events, results, cfg)
-    if args.out:
-        Path(args.out).parent.mkdir(parents=True, exist_ok=True)
-        Path(args.out).write_text(md, encoding="utf-8")
-        print(f"已寫入 {args.out}")
-    else:
-        print(md)
+    family = getattr(args, "family", None) or "gap"
+    symbols = args.symbol or ["TAIEX", "TPEX"]
+    for sym in symbols:
+        name = conn.execute("SELECT name FROM instrument WHERE symbol=?", (sym,)).fetchone()
+        data = build_family(conn, sym, family, cfg)
+        results = run(data.f, data.events, data.variants, cfg, data.alt_mask)
+        md = render(sym, name["name"] if name else sym, PEERS.get(sym, "—"), data, results,
+                    cfg, TITLES[family])
+        out = args.out if args.out and len(symbols) == 1 else \
+            str(Path(args.out_dir) / data.version / f"{sym.lower()}.md")
+        Path(out).parent.mkdir(parents=True, exist_ok=True)
+        Path(out).write_text(md, encoding="utf-8")
+        print(f"已寫入 {out}")
     return 0
 
 
 def cmd_signals_compute(args, conn) -> int:
     from .signals import load_config
-    from .signals.gaps import variants
-    from .signals.pipeline import build
+    from .signals.pipeline import FAMILIES, build_family
     from .signals.store import save_events
 
     cfg = load_config(args.config)
     for sym in args.symbol or ["TAIEX", "TPEX"]:
-        _, events = build(conn, sym, cfg)
-        n = save_events(conn, "market", sym, events, variants(cfg), cfg["version"])
-        print(f"{sym}：寫入 {n} 筆訊號事件（版本 {cfg['version']}）")
+        for fam in FAMILIES:
+            d = build_family(conn, sym, fam, cfg)
+            n = save_events(conn, "market", sym, d.events, d.variants, d.version)
+            print(f"{sym} {fam}：寫入 {n} 筆訊號事件（版本 {d.version}）")
     return 0
 
 
@@ -168,8 +169,9 @@ def cmd_signals_recent(args, conn) -> int:
         print(f"最近 {args.days} 天沒有訊號")
     for r in rows:
         anchor = "" if r["anchor_date"] == r["signal_date"] else f"（跳空日 {r['anchor_date']}）"
+        strength = "" if r["strength"] is None else f"強度 {r['strength']:.2f} ATR"
         print(f"{r['signal_date']}  {r['symbol']:<6} {r['signal_id']:<18} "
-              f"跳空 {r['strength']:.2f} ATR{anchor}  [{r['rule_version']}]")
+              f"{strength}{anchor}  [{r['rule_version']}]")
     return 0
 
 
@@ -216,11 +218,18 @@ def main(argv: list[str] | None = None) -> int:
     p.set_defaults(func=cmd_prices_check)
 
     rs = sub.add_parser("research", help="訊號研究").add_subparsers(dest="cmd", required=True)
-    p = rs.add_parser("gaps", help="高檔跳空向下事件研究")
-    p.add_argument("--symbol", default="TAIEX", choices=["TAIEX", "TPEX", "2330"])
-    p.add_argument("--config", help="參數檔（預設 src/twtm/signals/default.toml）")
-    p.add_argument("--out", help="輸出 Markdown 路徑；省略則印在畫面")
-    p.set_defaults(func=cmd_research_gaps)
+    for cmd, fam, hlp in (("run", None, "訊號研究（--family 指定系列）"),
+                          ("gaps", "gap", "高檔跳空向下（等同 run --family gap）")):
+        p = rs.add_parser(cmd, help=hlp)
+        if fam is None:
+            p.add_argument("--family", choices=["gap", "ma", "breakout"], required=True)
+        else:
+            p.set_defaults(family=fam)
+        p.add_argument("--symbol", action="append", choices=["TAIEX", "TPEX", "2330"])
+        p.add_argument("--config", help="參數檔（預設 src/twtm/signals/default.toml）")
+        p.add_argument("--out", help="輸出路徑（只指定一個 --symbol 時）")
+        p.add_argument("--out-dir", default="reports", help="輸出目錄；檔名為 <版本>/<標的>.md")
+        p.set_defaults(func=cmd_research)
 
     sg = sub.add_parser("signals", help="訊號").add_subparsers(dest="cmd", required=True)
     p = sg.add_parser("compute", help="計算訊號並寫入資料庫")

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import sqlite3
 
+import numpy as np
 import pandas as pd
 
 from ..metrics.prices import load_bars
@@ -62,7 +63,30 @@ def add_features(df: pd.DataFrame, cfg: dict) -> pd.DataFrame:
     vn = c["gap"]["volume_n"]
     out["vol_ratio"] = out["turnover"] / out["turnover"].rolling(vn, min_periods=vn).mean().shift(1)
 
+    # 量比的歷史百分位：t 日量比在 t-L..t-1 量比中的位置（gap-v2）
+    lb = c["gap"].get("volume_lookback", 750)
+    out["vol_pct"] = rolling_rank(out["vol_ratio"], lb, min_periods=250)
+
+    # 均線（含 t 日）
+    for n in (5, 10, 20, 60):
+        out[f"ma{n}"] = out["close"].rolling(n, min_periods=n).mean()
+
     # 一般用途
     out["ret_1d"] = out["close"].pct_change()
     out["atr_pct_prev"] = out["atr_prev"] / prev["close"]
+    out["atr_t"] = atr(out, c["common"]["atr_n"])   # 含 t 日，用於訊號日之後的回檔門檻
     return out
+
+
+def rolling_rank(x: pd.Series, lookback: int, min_periods: int) -> pd.Series:
+    """t 日值在 t-lookback..t-1 中的百分位（嚴格小於的比例）。只用過去資料。"""
+    v = x.to_numpy(dtype=float)
+    out = np.full(len(v), np.nan)
+    for i in range(len(v)):
+        if np.isnan(v[i]):
+            continue
+        past = v[max(0, i - lookback):i]
+        past = past[~np.isnan(past)]
+        if len(past) >= min_periods:
+            out[i] = (past < v[i]).mean()
+    return pd.Series(out, index=x.index)
