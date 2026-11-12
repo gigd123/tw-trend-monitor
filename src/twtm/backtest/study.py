@@ -170,9 +170,17 @@ def stress_windows(f: pd.DataFrame, runs: dict[str, np.ndarray], threshold: floa
 
 
 def run_study(conn: sqlite3.Connection, symbol: str, cfg: dict,
-              progress=lambda *_: None) -> Study:
+              progress=lambda *_: None, cost: float | None = None) -> Study:
+    """cost：覆寫設定檔的單邊成本（成本情境）。"""
+    import copy
+    cfg = copy.deepcopy(cfg)
+    if cost is not None:
+        cfg["backtest"]["cost"] = cost
     b = cfg["backtest"]
-    f_all = add_features(bars_frame(conn, symbol), cfg)
+    bars = bars_frame(conn, symbol)
+    if b.get("data_end"):
+        bars = bars.loc[:pd.Timestamp(b["data_end"])]   # 截止日之後保留給前向紀錄
+    f_all = add_features(bars, cfg)
     lv_all = price_weakness(f_all, cfg)
     start = lv_all["level"].first_valid_index()
     start = max(start, f_all["ma60"].first_valid_index())

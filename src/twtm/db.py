@@ -22,7 +22,7 @@ DEFAULT_DB = Path(os.environ.get("TWTM_DB", "data/twtm.db"))
 # 數字越大越優先。低優先來源不能覆蓋高優先來源的資料。
 SOURCE_PRIORITY = {"taifex": 2, "twse": 2, "tpex": 2, "yahoo": 1, "finmind": 1}
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS meta (
@@ -142,6 +142,22 @@ CREATE TABLE IF NOT EXISTS signal_event (
     detail       TEXT,            -- JSON：觸發條件數值
     computed_at  TEXT NOT NULL,
     PRIMARY KEY (scope, symbol, signal_id, rule_version, signal_date)
+);
+
+-- ===== v4：前向紀錄（只新增、不覆寫）=====
+-- 每個交易日收盤後記錄當時的轉弱程度與各減碼組合的層級，作為未參與研究的驗證資料
+CREATE TABLE IF NOT EXISTS forward_log (
+    trade_date   TEXT NOT NULL,
+    symbol       TEXT NOT NULL,
+    rule_version TEXT NOT NULL,   -- 轉弱程度版本（pw-v1）
+    level        INTEGER,         -- 0 正常 1 初步 2 明顯 3 惡化
+    label        TEXT,
+    state_a      INTEGER, state_b INTEGER, state_c INTEGER,
+    close        REAL,
+    tiers        TEXT NOT NULL,   -- JSON：{"bt-v2|100%/70%/score3": 層級, ...}（t 日收盤決定、t+1 開盤執行）
+    recorded_at  TEXT NOT NULL,   -- UTC
+    late         INTEGER NOT NULL,-- 1 = 超過下一個交易日開盤才記錄（補記）
+    PRIMARY KEY (trade_date, symbol, rule_version)
 );
 """
 

@@ -43,6 +43,9 @@ def render(st: Study, name: str) -> str:
     w(f"- 資料：{f.index[0].date()} ~ {f.index[-1].date()}，{len(f)} 個交易日")
     w(f"- 選參期：至 {b['selection_end']} 前；檢驗期：{b['selection_end']} 起（不參與選參）")
     w(f"- 版本：轉弱程度 `{cfg['risk']['version']}`、回測 `{b['version']}`")
+    w(f"- 成本情境：單邊 {b['cost']:.2%}")
+    if b.get("data_end"):
+        w(f"- 研究資料截止：{b['data_end']}（之後的資料保留給前向紀錄）")
     w(f"- 產生時間：{utc_now_iso()}\n")
 
     w("## 設計\n")
@@ -56,6 +59,9 @@ def render(st: Study, name: str) -> str:
     w("**恢復條件**：" + "；".join(f"`{k}` {v}" for k, v in RESTORE_LABELS.items()) + "\n")
     w(f"**選參規則（事先固定）**：選參期「年化報酬 / 最大回撤」最高的組合。"
       f"本次選出：初步轉弱 {c.w1:.0%}、明顯轉弱 {c.w2:.0%}、恢復條件 `{c.restore}`。\n")
+
+    if b.get("cost_scenarios"):
+        L.extend(_criteria(st))
 
     for period in ("selection", "test", "full"):
         ref = st.full[period]
@@ -146,3 +152,22 @@ def render(st: Study, name: str) -> str:
     w("- 「全程固定持股」假設每日免費再平衡。")
     w("- 大盤回測只代表大盤風險訊號的價值，不等於個股組合的實際效果。")
     return "\n".join(L) + "\n"
+
+
+def _criteria(st: Study) -> list[str]:
+    """事先登記的成功標準（mvp-spec-v1.2 §6.7）。"""
+    sel = st.selected
+    m, fa = sel.metrics["test"], sel.fixed_avg["test"]
+    rnd = sel.random["test"].get("unconditional")
+    beat_fixed = m.calmar > fa.calmar
+    beat_rand = bool(rnd and rnd.n and rnd.pct_beat["calmar"] >= 0.90)
+    ok = beat_fixed and beat_rand
+    yn = lambda x: "✅ 符合" if x else "❌ 不符合"  # noqa: E731
+    return [
+        "## 事先登記的成功標準（檢驗期）\n",
+        "| 標準 | 策略 | 對照 | 結果 |",
+        "|---|---|---|---|",
+        f"| 報酬/回撤 高於全程固定同樣平均持股（{m.avg_exposure:.0%}） | {_f(m.calmar)} | {_f(fa.calmar)} | {yn(beat_fixed)} |",
+        f"| 報酬/回撤 優於 ≥ 90% 隨機警報（起始日不限） | 優於 {_pct(rnd.pct_beat['calmar'], 0, False) if rnd and rnd.n else '—'} | 門檻 90% | {yn(beat_rand)} |",
+        f"\n**整體：{'通過' if ok else '未通過'}**\n",
+    ]

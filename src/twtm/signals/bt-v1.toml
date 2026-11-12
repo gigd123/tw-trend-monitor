@@ -50,6 +50,7 @@ gap_within = 10            # 假突破後 N 日內出現向下跳空
 # ---------- 研究方法 ----------
 [research]
 version = "research-v2"    # v2：主要判定改為「20 日內大回檔機率」
+data_end = "2026-11-11"     # 研究資料截止日；之後保留給前向紀錄
 verdict_metric = "drawdown"
 horizons = [1, 3, 5, 10, 20]
 mae_days = 20              # 回檔觀察天數
@@ -85,6 +86,7 @@ fixed_weight = 0.7                  # 比較基準：全程固定持股
 ma_rule_window = 60                 # 比較基準：跌破 60 日線減碼
 selection_end = "2019-01-01"        # 選參期 2005–2018；之後只用來檢驗
 selection_metric = "calmar"         # 選參規則：選參期 年化報酬 / 最大回撤 最高者
+data_end = "2026-11-11"             # （補加）bt-v1 執行時的資料截止日，用於重現
 random_sims = 1000
 seed = 20261113
 stress_drawdown = 0.15              # 大跌段：加權從高點回落 >= 15%

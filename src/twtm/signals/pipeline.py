@@ -47,8 +47,11 @@ def build(conn: sqlite3.Connection, symbol: str, cfg: dict) -> tuple[pd.DataFram
     return d.f, d.events
 
 
-def build_family(conn: sqlite3.Connection, symbol: str, family: str, cfg: dict) -> FamilyData:
+def build_family(conn: sqlite3.Connection, symbol: str, family: str, cfg: dict,
+                 end: str | None = None) -> FamilyData:
     f = features(conn, symbol, cfg)
+    if end:
+        f = f.loc[:pd.Timestamp(end)]
     if family == "gap":
         peer_sym = PEERS.get(symbol)
         peer = add_features(bars_frame(conn, peer_sym), cfg) if peer_sym else None

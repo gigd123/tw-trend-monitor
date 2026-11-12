@@ -100,6 +100,45 @@ pytest                           # 離線測試，使用 tests/fixtures 的真�
 python feasibility/probe.py      # 檢測所有資料來源是否可用
 ```
 
+## 每日自動執行（Windows）
+
+```bash
+python -m venv .venv
+```
+
+```bash
+.venv\Scripts\activate
+```
+
+```bash
+pip install -e .
+```
+
+```bash
+twtm futures backfill
+```
+
+```bash
+twtm prices backfill
+```
+
+首次回補完成後，用工作排程器每個交易日 15:40 執行 `scripts\daily.bat`（期貨 → 價格 → 訊號 → 前向紀錄，輸出寫到 `data\daily.log`）：
+
+```bash
+schtasks /Create /TN "twtm daily" /TR "\"%CD%\scripts\daily.bat\"" /SC WEEKLY /D MON,TUE,WED,THU,FRI /ST 15:40
+```
+
+可以再加一個 21:40 的排程補抓晚間公布的資料（重複執行不會產生重複紀錄）。
+
+### 前向紀錄
+
+`twtm forward record`（每日流程會自動執行）把當天收盤後的轉弱程度，以及 bt-v1、bt-v2 所有參數組合的減碼層級寫進 `forward_log`。
+**只新增、不覆寫**；超過下一個交易日 09:00 才記錄的會標記為補記。從 2026-11-12 開始，這是唯一完全沒被研究使用過的驗證資料。
+
+```bash
+twtm forward show --days 20
+```
+
 ## 免責
 
 本系統僅為輔助判斷，不構成投資建議，不提供自動交易。

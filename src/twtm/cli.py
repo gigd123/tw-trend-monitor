@@ -13,6 +13,8 @@
     twtm signals recent                       # 最近的訊號
     twtm risk show                            # 價格趨勢轉弱程度
     twtm backtest run                         # 減碼回測 → reports/<版本>/
+    twtm forward record | show                # 前向紀錄
+    twtm daily                                # 每日流程（排程用）
 """
 
 from __future__ import annotations
@@ -136,7 +138,7 @@ def cmd_research(args, conn) -> int:
     symbols = args.symbol or ["TAIEX", "TPEX"]
     for sym in symbols:
         name = conn.execute("SELECT name FROM instrument WHERE symbol=?", (sym,)).fetchone()
-        data = build_family(conn, sym, family, cfg)
+        data = build_family(conn, sym, family, cfg, end=cfg["research"].get("data_end"))
         results = run(data.f, data.events, data.variants, cfg, data.alt_mask)
         md = render(sym, name["name"] if name else sym, PEERS.get(sym, "—"), data, results,
                     cfg, TITLES[family])
@@ -186,14 +188,17 @@ def cmd_backtest(args, conn) -> int:
     cfg = load_config(args.config)
     if args.sims is not None:
         cfg["backtest"]["random_sims"] = args.sims
+    scenarios = cfg["backtest"].get("cost_scenarios") or [None]
     for sym in args.symbol or ["TAIEX"]:
         name = conn.execute("SELECT name FROM instrument WHERE symbol=?", (sym,)).fetchone()
-        st = run_study(conn, sym, cfg, progress=lambda i, n, cid: print(
-            f"  {sym} {i}/{n} {cid}", flush=True) if args.verbose else None)
-        out = Path(args.out_dir) / cfg["backtest"]["version"] / f"{sym.lower()}.md"
-        out.parent.mkdir(parents=True, exist_ok=True)
-        out.write_text(render(st, name["name"] if name else sym), encoding="utf-8")
-        print(f"已寫入 {out}")
+        for cost in scenarios:
+            st = run_study(conn, sym, cfg, cost=cost, progress=lambda i, n, cid: print(
+                f"  {sym} {i}/{n} {cid}", flush=True) if args.verbose else None)
+            suffix = "" if cost is None else f"-cost{cost * 100:.2f}"
+            out = Path(args.out_dir) / cfg["backtest"]["version"] / f"{sym.lower()}{suffix}.md"
+            out.parent.mkdir(parents=True, exist_ok=True)
+            out.write_text(render(st, name["name"] if name else sym), encoding="utf-8")
+            print(f"已寫入 {out}", flush=True)
     return 0
 
 
@@ -211,6 +216,54 @@ def cmd_risk_show(args, conn) -> int:
         for d, r in lv.iloc[::-1].iterrows():
             print(f"{d.date()}  {r['label']:<8}  {yn(r['A']):^8}  {yn(r['B']):^6}  {yn(r['C']):^8}")
     return 0
+
+
+def cmd_forward_record(args, conn) -> int:
+    from .risk.forward import record
+    added = record(conn)
+    print("\n".join(added) if added else "沒有新的交易日需要記錄")
+    return 0
+
+
+def cmd_forward_show(args, conn) -> int:
+    import json
+    from .risk.forward import recent
+    rows = recent(conn, args.days)
+    if not rows:
+        print("尚無前向紀錄；執行 twtm forward record")
+        return 0
+    print("日期        標的    轉弱程度   bt-v2 選定組合的下一日持股  補記")
+    for r in rows:
+        tiers = json.loads(r["tiers"])
+        v2 = {k.split("|", 1)[1]: v for k, v in tiers.items() if k.startswith("bt-v2|")}
+        reduced = sum(1 for v in v2.values() if v >= 2)
+        print(f"{r['trade_date']}  {r['symbol']:<6}  {r['label']:<8}  "
+              f"{reduced}/{len(v2)} 組處於減碼  {'是' if r['late'] else ''}")
+    return 0
+
+
+def cmd_daily(args, conn) -> int:
+    """每日流程：期貨 → 價格 → 訊號 → 前向紀錄。單一步驟失敗不中止其他步驟。"""
+    from .ingest import prices as ingest_prices
+    from .risk.forward import record
+    failures = []
+    steps = [
+        ("期貨籌碼", lambda: print(ingest.update(conn, Fetcher()))),
+        ("價格", lambda: print(ingest_prices.update(conn, Fetcher()))),
+        ("訊號", lambda: cmd_signals_compute(argparse.Namespace(symbol=None, config=None), conn)),
+        ("前向紀錄", lambda: print("\n".join(record(conn)) or "沒有新的交易日需要記錄")),
+        ("轉弱程度", lambda: cmd_risk_show(argparse.Namespace(symbol=None, days=3, config=None), conn)),
+    ]
+    for name, fn in steps:
+        print(f"\n### {name}", flush=True)
+        try:
+            fn()
+        except Exception as e:  # noqa: BLE001 - 每日流程要盡量跑完
+            failures.append(f"{name}：{type(e).__name__}: {e}")
+            print(f"失敗：{failures[-1]}", file=sys.stderr)
+    if failures:
+        print("\n有步驟失敗：\n" + "\n".join(failures), file=sys.stderr)
+    return 1 if failures else 0
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -292,6 +345,16 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--days", type=int, default=15)
     p.add_argument("--config")
     p.set_defaults(func=cmd_risk_show)
+
+    fw = sub.add_parser("forward", help="前向紀錄").add_subparsers(dest="cmd", required=True)
+    p = fw.add_parser("record", help="記錄最新交易日（只新增、不覆寫）")
+    p.set_defaults(func=cmd_forward_record)
+    p = fw.add_parser("show", help="最近的前向紀錄")
+    p.add_argument("--days", type=int, default=20)
+    p.set_defaults(func=cmd_forward_show)
+
+    p = sub.add_parser("daily", help="每日流程（期貨 → 價格 → 訊號 → 前向紀錄），給排程使用")
+    p.set_defaults(func=cmd_daily)
 
     args = ap.parse_args(argv)
     logging.basicConfig(level=logging.INFO if args.verbose else logging.WARNING,
