@@ -69,7 +69,7 @@
 | 開盤跳空 `gap_open` | O_t < L_{t−1} | |
 | 跳空幅度 | (L_{t−1} − O_t) / ATR，以及 (L_{t−1} − O_t) / C_{t−1} | |
 | 收盤跌破前日低點 | C_t < L_{t−1} | |
-| 缺口未回補 k 日 | 跳空後第 1～k 個交易日的最高價都 < L_{t−1}（缺口上緣） | k=3, 5 |
+| 缺口未回補 k 日 | 跳空當日（第 0 日）到第 k 個交易日的最高價都 < L_{t−1}（缺口上緣）。開盤跳空但當日盤中已回補者不算 | k=3, 5 |
 | 量能放大 | 成交金額 / 20 日均成交金額（至 t−1） | 門檻 1.5 |
 | 櫃買同步 | 同日櫃買也開盤跳空，或櫃買收盤跌破前日低點 | |
 | 國際同步 | 對齊的前一美股交易日，費半日報酬 ≤ −1.5 倍自身 ATR%，或收盤 < 20 日均線 | |
@@ -232,7 +232,7 @@ CREATE TABLE signal_event (
     strength     REAL,             -- 例如跳空幅度（ATR）
     detail       TEXT,             -- JSON：觸發條件數值
     computed_at  TEXT NOT NULL,
-    PRIMARY KEY (scope, signal_id, rule_version, signal_date)
+    PRIMARY KEY (scope, symbol, signal_id, rule_version, signal_date)
 );
 ```
 

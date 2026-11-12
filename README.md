@@ -30,6 +30,18 @@ twtm prices update               # 每日：重抓最近 35 天
 twtm prices check                # 品質檢查：缺交易日、缺 OHLC、高低價矛盾、異常變動
 ```
 
+## 訊號研究（Phase 2）
+
+第一批：高檔跳空向下系列（定義見 [mvp-spec-v1.2 §4](docs/mvp-spec-v1.2.md)）。參數在 `src/twtm/signals/default.toml`，改參數要同時改 `version`。
+
+```bash
+twtm research gaps --symbol TAIEX --out reports/gap-research-taiex.md   # 事件研究報告
+twtm signals compute             # 計算訊號，寫入 signal_event
+twtm signals recent --days 30    # 最近的訊號
+```
+
+研究報告列出每個變體在探索期（2005–2018）與驗證期（2019–）的表現，判定規則在看結果前固定。
+
 ## 期貨籌碼
 
 商品：臺股期貨（TX）、小型臺指（MTX）、微型臺指（TMF）。

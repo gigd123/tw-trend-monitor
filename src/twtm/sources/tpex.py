@@ -47,11 +47,19 @@ def parse_index_ohlc(body: bytes, fetched_at: str) -> list[dict]:
     } for r in _table(body, ["日期", "開市", "最高", "最低", "收市"])]
 
 
+# 量的欄位名稱曾改版：舊為「成交股數（仟股）」、新為「成交張數」，單位相同（1 張＝1,000 股）
+VOLUME_FIELDS = ("成交張數", "成交股數（仟股）")
+
+
 def parse_trading_index(body: bytes, fetched_at: str) -> list[dict]:
-    rows = _table(body, ["日期", "成交張數", "金額（仟元）"])
+    rows = _table(body, ["日期", "金額（仟元）"])
+    if rows:
+        vol_field = next((f for f in VOLUME_FIELDS if f in rows[0]), None)
+        if vol_field is None:
+            raise ParseError(f"找不到成交量欄位 {VOLUME_FIELDS}；端點可能改版")
     return [{
         "symbol": "TPEX", "trade_date": _iso(r["日期"]),
-        "volume": int(num(r["成交張數"]) * 1000),     # 張 → 股
+        "volume": int(num(r[vol_field]) * 1000),      # 張／仟股 → 股
         "turnover": num(r["金額（仟元）"]) * 1000,     # 仟元 → 元
         "source": "tpex", "fetched_at": fetched_at,
     } for r in rows]

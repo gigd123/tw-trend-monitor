@@ -173,3 +173,11 @@ def test_quality_check_flags_problems(conn):
     assert rep.big_moves == ["2026-11-04"]
     assert not rep.ok
     assert check(conn, "TAIEX", "TWSE", needs_turnover=True).ok
+
+
+def test_tpex_trading_index_old_field_name():
+    """2005 年等舊資料的量欄位是「成交股數（仟股）」。"""
+    vol = tpex.parse_trading_index(fixture_bytes("tpex_trading_index_200501.json"), T)
+    assert vol[0]["trade_date"] == "2005-01-03"
+    assert vol[0]["volume"] == 428_236_000
+    assert vol[0]["turnover"] == 9_042_274_000

@@ -8,6 +8,9 @@
     twtm prices backfill                      # 加權、櫃買、台積電、除權息、費半、Nasdaq（2005 起）
     twtm prices update                        # 每日更新
     twtm prices check                         # 資料品質檢查
+    twtm research gaps --symbol TAIEX         # 高檔跳空向下訊號研究報告
+    twtm signals compute                      # 計算訊號並寫入 signal_event
+    twtm signals recent                       # 最近的訊號
 """
 
 from __future__ import annotations
@@ -119,6 +122,57 @@ def cmd_prices_check(args, conn) -> int:
     return 0 if all_ok else 1
 
 
+def cmd_research_gaps(args, conn) -> int:
+    from pathlib import Path
+    from .signals import load_config
+    from .signals.gaps import variants
+    from .signals.pipeline import PEERS, build
+    from .signals.report import render
+    from .signals.research import run
+
+    cfg = load_config(args.config)
+    name = conn.execute("SELECT name FROM instrument WHERE symbol=?", (args.symbol,)).fetchone()
+    f, events = build(conn, args.symbol, cfg)
+    results = run(f, events, variants(cfg), cfg)
+    md = render(args.symbol, name["name"] if name else args.symbol,
+                PEERS.get(args.symbol, "—"), f, events, results, cfg)
+    if args.out:
+        Path(args.out).parent.mkdir(parents=True, exist_ok=True)
+        Path(args.out).write_text(md, encoding="utf-8")
+        print(f"已寫入 {args.out}")
+    else:
+        print(md)
+    return 0
+
+
+def cmd_signals_compute(args, conn) -> int:
+    from .signals import load_config
+    from .signals.gaps import variants
+    from .signals.pipeline import build
+    from .signals.store import save_events
+
+    cfg = load_config(args.config)
+    for sym in args.symbol or ["TAIEX", "TPEX"]:
+        _, events = build(conn, sym, cfg)
+        n = save_events(conn, "market", sym, events, variants(cfg), cfg["version"])
+        print(f"{sym}：寫入 {n} 筆訊號事件（版本 {cfg['version']}）")
+    return 0
+
+
+def cmd_signals_recent(args, conn) -> int:
+    rows = conn.execute(
+        "SELECT symbol, signal_date, anchor_date, signal_id, strength, rule_version "
+        "FROM signal_event WHERE signal_date >= date('now', ?) "
+        "ORDER BY signal_date DESC, symbol, signal_id", (f"-{args.days} days",)).fetchall()
+    if not rows:
+        print(f"最近 {args.days} 天沒有訊號")
+    for r in rows:
+        anchor = "" if r["anchor_date"] == r["signal_date"] else f"（跳空日 {r['anchor_date']}）"
+        print(f"{r['signal_date']}  {r['symbol']:<6} {r['signal_id']:<18} "
+              f"跳空 {r['strength']:.2f} ATR{anchor}  [{r['rule_version']}]")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="twtm")
     ap.add_argument("--db", default=str(db.DEFAULT_DB), help="SQLite 路徑（預設 data/twtm.db）")
@@ -160,6 +214,22 @@ def main(argv: list[str] | None = None) -> int:
     p.set_defaults(func=cmd_prices_update)
     p = pr.add_parser("check", help="資料品質檢查")
     p.set_defaults(func=cmd_prices_check)
+
+    rs = sub.add_parser("research", help="訊號研究").add_subparsers(dest="cmd", required=True)
+    p = rs.add_parser("gaps", help="高檔跳空向下事件研究")
+    p.add_argument("--symbol", default="TAIEX", choices=["TAIEX", "TPEX", "2330"])
+    p.add_argument("--config", help="參數檔（預設 src/twtm/signals/default.toml）")
+    p.add_argument("--out", help="輸出 Markdown 路徑；省略則印在畫面")
+    p.set_defaults(func=cmd_research_gaps)
+
+    sg = sub.add_parser("signals", help="訊號").add_subparsers(dest="cmd", required=True)
+    p = sg.add_parser("compute", help="計算訊號並寫入資料庫")
+    p.add_argument("--symbol", action="append", choices=["TAIEX", "TPEX", "2330"])
+    p.add_argument("--config")
+    p.set_defaults(func=cmd_signals_compute)
+    p = sg.add_parser("recent", help="最近的訊號")
+    p.add_argument("--days", type=int, default=30)
+    p.set_defaults(func=cmd_signals_recent)
 
     args = ap.parse_args(argv)
     logging.basicConfig(level=logging.INFO if args.verbose else logging.WARNING,

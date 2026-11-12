@@ -22,7 +22,7 @@ DEFAULT_DB = Path(os.environ.get("TWTM_DB", "data/twtm.db"))
 # 數字越大越優先。低優先來源不能覆蓋高優先來源的資料。
 SOURCE_PRIORITY = {"taifex": 2, "twse": 2, "tpex": 2, "yahoo": 1, "finmind": 1}
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS meta (
@@ -127,6 +127,21 @@ CREATE TABLE IF NOT EXISTS corporate_action (
     source     TEXT NOT NULL,
     fetched_at TEXT NOT NULL,
     PRIMARY KEY (symbol, ex_date, action)
+);
+
+-- ===== v3：訊號事件（mvp-spec-v1.2 §7.2）=====
+-- 可由價格重算；存表是為了每日警報與歷史紀錄
+CREATE TABLE IF NOT EXISTS signal_event (
+    scope        TEXT NOT NULL,   -- market | symbol:2330 | sector:PCB
+    symbol       TEXT NOT NULL,   -- 計算所依據的標的
+    signal_id    TEXT NOT NULL,   -- V0_base 等
+    rule_version TEXT NOT NULL,   -- 訊號設定檔版本
+    signal_date  TEXT NOT NULL,   -- 訊號成立且可得知的日期
+    anchor_date  TEXT NOT NULL,   -- 事件發生日（跳空當日）
+    strength     REAL,            -- 跳空幅度（ATR）
+    detail       TEXT,            -- JSON：觸發條件數值
+    computed_at  TEXT NOT NULL,
+    PRIMARY KEY (scope, symbol, signal_id, rule_version, signal_date)
 );
 """
 

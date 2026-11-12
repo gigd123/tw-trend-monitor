@@ -10,6 +10,7 @@ requires-python = ">=3.11"
 dependencies = [
     "requests>=2.31",
     "tzdata",  # Windows 的 Python 沒有 IANA 時區資料庫
+    "pandas>=2.1",
 ]
 
 [project.optional-dependencies]
@@ -20,6 +21,9 @@ twtm = "twtm.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+twtm = ["signals/*.toml"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
