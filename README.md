@@ -2,10 +2,11 @@
 
 個人使用的台股多空趨勢與資金風險監控系統。透過短、中、長線市場指標，辨識台股趨勢轉弱的早期訊號，協助管理持股水位。
 
-目前階段：**價格風險分數與減碼回測（pw-v1 / bt-v1）**。最新結果見 [reports/bt-v1/summary.md](reports/bt-v1/summary.md)；訊號研究見 [reports/phase2-round2-summary.md](reports/phase2-round2-summary.md)。
+目前階段：**減碼回測 bt-v2 完成、前向紀錄進行中**。最新結果見 [reports/bt-v2/summary.md](reports/bt-v2/summary.md)。
 
 ## 文件
 
+- [docs/ideas/333-growth-screen.md](docs/ideas/333-growth-screen.md)：分析師「333 成長選股法」評估（構想，尚未實作）
 - [docs/mvp-spec-v1.2.md](docs/mvp-spec-v1.2.md)：**目前的 MVP 開發規格**（短線風險預警定位、Phase 劃分、訊號定義、減碼回測、資料表）
 - [docs/spec-v1.1-changes.md](docs/spec-v1.1-changes.md)：規格 v1.1 修訂（轉空事件定義、計分架構、百分位門檻、Phase 1 範圍）
 - [docs/data-feasibility.md](docs/data-feasibility.md)：逐項資料來源實測結果與最低成本資料架構
@@ -59,7 +60,8 @@ twtm signals recent --days 30    # 最近的訊號
 
 ```bash
 twtm risk show --days 15         # 最近的轉弱程度
-twtm backtest run --symbol TAIEX --symbol TPEX   # 27 組參數 × 比較基準 × 1,000 次隨機警報 → reports/bt-v1/（約 20 分鐘／標的）
+twtm backtest run --symbol TAIEX --symbol TPEX   # 目前 bt-v2：9 組參數 × 2 成本情境 × 1,000 次隨機警報 → reports/bt-v2/
+twtm backtest run --config src/twtm/signals/bt-v1.toml   # 重現 bt-v1
 ```
 
 參數在 `src/twtm/signals/default.toml` 的 `[risk]`、`[backtest]`。
