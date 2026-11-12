@@ -57,3 +57,31 @@ min_events = 15            # 少於此數只列出、不下結論
 split_date = "2019-01-01"  # 探索期 / 驗證期
 bootstrap = 5000
 seed = 20261112
+
+# ---------- 價格趨勢轉弱程度（風險分數，價格類別） ----------
+[risk]
+version = "pw-v1"
+# 三個狀態（每日收盤判斷）：
+#   A 跌破 20 日線後站不回：收盤連續 hold_days 日在 20 日線之下（M4 的持續版）
+#   B 5 日線在 20 日線之下（M5 的持續版）
+#   C 20 日線下彎：20 日線 < slope_days 日前（M6 的持續版）
+hold_days = 3
+slope_days = 3
+persist_days = 5           # 「趨勢惡化」：A、B、C 同時成立連續 5 日
+
+# ---------- 減碼回測 ----------
+[backtest]
+version = "bt-v1"
+initial_weights = [0.8, 0.7, 0.6]   # 初步轉弱時的持股比例
+strong_weights = [0.6, 0.4, 0.2]    # 明顯轉弱（含趨勢惡化）時的持股比例
+restore_rules = ["score3", "above_ma20", "above_ma20_ma5up"]
+restore_days = 3                    # score3：轉弱程度連續 3 日低於目前減碼層級
+cost = 0.003                        # 每次調整：調整比例 × 單邊成本
+cost_sensitivity = [0.001, 0.005]
+fixed_weight = 0.7                  # 比較基準：全程固定持股
+ma_rule_window = 60                 # 比較基準：跌破 60 日線減碼
+selection_end = "2019-01-01"        # 選參期 2005–2018；之後只用來檢驗
+selection_metric = "calmar"         # 選參規則：選參期 年化報酬 / 最大回撤 最高者
+random_sims = 1000
+seed = 20261113
+stress_drawdown = 0.15              # 大跌段：加權從高點回落 >= 15%

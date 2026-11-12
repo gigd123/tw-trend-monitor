@@ -2,7 +2,7 @@
 
 個人使用的台股多空趨勢與資金風險監控系統。透過短、中、長線市場指標，辨識台股趨勢轉弱的早期訊號，協助管理持股水位。
 
-目前階段：**Phase 2 訊號研究**。價格資料（2005 起）與期貨籌碼已完成；最新研究結果見 [reports/phase2-round2-summary.md](reports/phase2-round2-summary.md)。開發規格見 [docs/mvp-spec-v1.2.md](docs/mvp-spec-v1.2.md)。
+目前階段：**價格風險分數與減碼回測（pw-v1 / bt-v1）**。最新結果見 [reports/bt-v1/summary.md](reports/bt-v1/summary.md)；訊號研究見 [reports/phase2-round2-summary.md](reports/phase2-round2-summary.md)。
 
 ## 文件
 
@@ -51,6 +51,18 @@ twtm signals recent --days 30    # 最近的訊號
 
 研究以「訊號後 20 日內回檔 ≥ 4 ATR 的機率」判定（research-v2）：訊號是警訊，不是預測下跌。
 每個變體分探索期（2005–2018）與驗證期（2019–）比較，判定規則在看結果前固定。
+
+## 價格風險分數與減碼回測
+
+價格趨勢轉弱程度（pw-v1）：由「跌破 20 日線後站不回」「5 日線在 20 日線之下」「20 日線下彎」三個狀態合成，
+分為正常、初步轉弱、明顯轉弱、趨勢惡化。
+
+```bash
+twtm risk show --days 15         # 最近的轉弱程度
+twtm backtest run --symbol TAIEX --symbol TPEX   # 27 組參數 × 比較基準 × 1,000 次隨機警報 → reports/bt-v1/（約 20 分鐘／標的）
+```
+
+參數在 `src/twtm/signals/default.toml` 的 `[risk]`、`[backtest]`。
 
 ## 期貨籌碼
 

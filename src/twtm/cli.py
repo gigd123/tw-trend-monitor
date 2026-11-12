@@ -11,6 +11,8 @@
     twtm research run --family ma             # 訊號研究（gap | ma | breakout）→ reports/<版本>/
     twtm signals compute                      # 計算訊號並寫入 signal_event
     twtm signals recent                       # 最近的訊號
+    twtm risk show                            # 價格趨勢轉弱程度
+    twtm backtest run                         # 減碼回測 → reports/<版本>/
 """
 
 from __future__ import annotations
@@ -175,6 +177,42 @@ def cmd_signals_recent(args, conn) -> int:
     return 0
 
 
+def cmd_backtest(args, conn) -> int:
+    from pathlib import Path
+    from .backtest.report import render
+    from .backtest.study import run_study
+    from .signals import load_config
+
+    cfg = load_config(args.config)
+    if args.sims is not None:
+        cfg["backtest"]["random_sims"] = args.sims
+    for sym in args.symbol or ["TAIEX"]:
+        name = conn.execute("SELECT name FROM instrument WHERE symbol=?", (sym,)).fetchone()
+        st = run_study(conn, sym, cfg, progress=lambda i, n, cid: print(
+            f"  {sym} {i}/{n} {cid}", flush=True) if args.verbose else None)
+        out = Path(args.out_dir) / cfg["backtest"]["version"] / f"{sym.lower()}.md"
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(render(st, name["name"] if name else sym), encoding="utf-8")
+        print(f"已寫入 {out}")
+    return 0
+
+
+def cmd_risk_show(args, conn) -> int:
+    from .risk.levels import price_weakness
+    from .signals import load_config
+    from .signals.pipeline import features
+
+    cfg = load_config(args.config)
+    for sym in args.symbol or ["TAIEX", "TPEX"]:
+        lv = price_weakness(features(conn, sym, cfg), cfg).tail(args.days)
+        print(f"\n== {sym} 價格趨勢轉弱程度（{cfg['risk']['version']}）")
+        print("日期         程度        A 站不回  B 5<20  C 20 下彎")
+        yn = lambda x: "是" if x else "　"  # noqa: E731
+        for d, r in lv.iloc[::-1].iterrows():
+            print(f"{d.date()}  {r['label']:<8}  {yn(r['A']):^8}  {yn(r['B']):^6}  {yn(r['C']):^8}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="twtm")
     ap.add_argument("--db", default=str(db.DEFAULT_DB), help="SQLite 路徑（預設 data/twtm.db）")
@@ -239,6 +277,21 @@ def main(argv: list[str] | None = None) -> int:
     p = sg.add_parser("recent", help="最近的訊號")
     p.add_argument("--days", type=int, default=30)
     p.set_defaults(func=cmd_signals_recent)
+
+    bt = sub.add_parser("backtest", help="減碼回測").add_subparsers(dest="cmd", required=True)
+    p = bt.add_parser("run", help="價格風險分數減碼回測 → reports/<版本>/<標的>.md")
+    p.add_argument("--symbol", action="append", choices=["TAIEX", "TPEX"])
+    p.add_argument("--config")
+    p.add_argument("--sims", type=int, help="隨機警報模擬次數（預設依設定檔）")
+    p.add_argument("--out-dir", default="reports")
+    p.set_defaults(func=cmd_backtest)
+
+    rk = sub.add_parser("risk", help="風險分數").add_subparsers(dest="cmd", required=True)
+    p = rk.add_parser("show", help="價格趨勢轉弱程度")
+    p.add_argument("--symbol", action="append", choices=["TAIEX", "TPEX", "2330"])
+    p.add_argument("--days", type=int, default=15)
+    p.add_argument("--config")
+    p.set_defaults(func=cmd_risk_show)
 
     args = ap.parse_args(argv)
     logging.basicConfig(level=logging.INFO if args.verbose else logging.WARNING,
