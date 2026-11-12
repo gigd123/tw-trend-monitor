@@ -65,7 +65,9 @@ def _rng(seed: int, *keys: str) -> np.random.Generator:
 def stock_returns(conn: sqlite3.Connection, symbol: str, index: pd.DatetimeIndex) -> tuple[np.ndarray, str]:
     """加權用報酬指數（含息）；櫃買用價格指數（找不到報酬指數歷史）。"""
     if symbol == "TAIEX":
-        tr = bars_frame(conn, "TAIEX_TR", adjust=False)["close"]
+        rows = conn.execute("SELECT trade_date, close FROM price_daily WHERE symbol='TAIEX_TR' "
+                            "AND close IS NOT NULL ORDER BY trade_date").fetchall()
+        tr = pd.Series([r[1] for r in rows], index=pd.to_datetime([r[0] for r in rows]), dtype=float)
         if tr.empty:
             raise ValueError("沒有加權報酬指數；請先執行 twtm prices backfill --only twse.total_return.TAIEX_TR")
         r = tr.pct_change().reindex(index)

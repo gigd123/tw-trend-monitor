@@ -2,7 +2,7 @@
 
 個人使用的台股多空趨勢與資金風險監控系統。透過短、中、長線市場指標，辨識台股趨勢轉弱的早期訊號，協助管理持股水位。
 
-目前階段：**減碼回測 bt-v2 完成、前向紀錄進行中**。最新結果見 [reports/bt-v2/summary.md](reports/bt-v2/summary.md)。
+目前階段：**期貨避險回測 hedge-v1 完成、前向紀錄進行中**。最新結果見 [reports/hedge-v1/summary.md](reports/hedge-v1/summary.md)。
 
 ## 文件
 
@@ -62,9 +62,20 @@ twtm signals recent --days 30    # 最近的訊號
 twtm risk show --days 15         # 最近的轉弱程度
 twtm backtest run --symbol TAIEX --symbol TPEX   # 目前 bt-v2：9 組參數 × 2 成本情境 × 1,000 次隨機警報 → reports/bt-v2/
 twtm backtest run --config src/twtm/signals/bt-v1.toml   # 重現 bt-v1
+twtm backtest hedge              # 期貨避險 hedge-v1 → reports/hedge-v1/（需要台指期 2005 起行情與加權報酬指數）
 ```
 
-參數在 `src/twtm/signals/default.toml` 的 `[risk]`、`[backtest]`。
+參數在 `src/twtm/signals/default.toml` 的 `[risk]`、`[backtest]`、`[hedge]`。
+
+期貨避險回測需要的資料：
+
+```bash
+twtm futures backfill --dataset daily --product TX --start 2005-01-01
+```
+
+```bash
+twtm prices backfill --only twse.total_return.TAIEX_TR --only finmind.total_return.TAIEX_TR
+```
 
 ## 期貨籌碼
 

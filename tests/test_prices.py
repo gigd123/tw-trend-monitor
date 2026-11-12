@@ -103,6 +103,8 @@ def responder(call):
     if "finance.yahoo" in url:
         return fixture_bytes("yahoo_sox.json")
     if "finmind" in url:
+        if call.get("dataset") == "TaiwanStockTotalReturnIndex":
+            return fixture_bytes("finmind_tr_index.json")
         return fixture_bytes("finmind_stock_2330.json")
     raise AssertionError(url)
 
@@ -124,7 +126,7 @@ def test_backfill_respects_dataset_ranges(conn):
     ingest.backfill(conn, f, date(2009, 11, 1), date(2010, 2, 28), today=TODAY)
     stock_day = [c for c in f.calls if "STOCK_DAY" in c["url"]]
     assert {c["date"] for c in stock_day} == {"20100101", "20100201"}   # 證交所 2010 起
-    fm = [c for c in f.calls if "finmind" in c["url"]]
+    fm = [c for c in f.calls if "finmind" in c["url"] and c.get("dataset") == "TaiwanStockPrice"]
     assert [(c["start_date"], c["end_date"]) for c in fm] == [("2009-11-01", "2009-12-31")]
 
 
@@ -189,3 +191,8 @@ def test_twse_total_return_index():
     rows = twse.parse_total_return_index(fixture_bytes("twse_tr_index_202611.json"), T)
     assert rows[0]["symbol"] == "TAIEX_TR" and rows[0]["trade_date"] == "2026-11-02"
     assert rows[0]["close"] > 0 and "open" not in rows[0]
+
+
+def test_finmind_total_return_index():
+    rows = finmind.parse_total_return_index(fixture_bytes("finmind_tr_index.json"), T)
+    assert rows[0] == {**rows[0], "symbol": "TAIEX_TR", "trade_date": "2005-01-03", "close": 6482.42}

@@ -138,3 +138,19 @@ def fetch_stock_price(fetcher: Fetcher, symbol: str, start: date, end: date) -> 
     if token:
         params["token"] = token
     return fetcher.request("finmind", "GET", URL, params=params).content
+
+
+def parse_total_return_index(body: bytes, fetched_at: str) -> list[dict]:
+    """TaiwanStockTotalReturnIndex（加權報酬指數，證交所 MFI94U 的備援）。存為 TAIEX_TR。"""
+    return [{"symbol": "TAIEX_TR", "trade_date": r["date"], "close": float(r["price"]),
+             "source": "finmind", "fetched_at": fetched_at}
+            for r in _payload(body) if r.get("stock_id") == "TAIEX"]
+
+
+def fetch_total_return_index(fetcher: Fetcher, start: date, end: date) -> bytes:
+    params = {"dataset": "TaiwanStockTotalReturnIndex", "data_id": "TAIEX",
+              "start_date": start.isoformat(), "end_date": end.isoformat()}
+    token = os.environ.get("FINMIND_TOKEN")
+    if token:
+        params["token"] = token
+    return fetcher.request("finmind", "GET", URL, params=params).content

@@ -61,6 +61,10 @@ def datasets() -> list[Dataset]:
         Dataset("twse", "total_return", "TAIEX_TR", HISTORY_START, None, m,
                 lambda f, s, e: twse.fetch_total_return_index(f, s), twse.parse_total_return_index,
                 "price_daily", PRICE_KEY),
+        # 證交所 WAF 經常擋報酬指數的大量回補；FinMind 作為備援（官方資料優先）
+        Dataset("finmind", "total_return", "TAIEX_TR", HISTORY_START, None, y,
+                finmind.fetch_total_return_index, finmind.parse_total_return_index,
+                "price_daily", PRICE_KEY),
         Dataset("tpex", "index_ohlc", "TPEX", HISTORY_START, None, m,
                 lambda f, s, e: tpex.fetch_index_ohlc(f, s), tpex.parse_index_ohlc,
                 "price_daily", PRICE_KEY),
