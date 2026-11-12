@@ -59,8 +59,8 @@
 | 融資餘額、增減（上市） | A | TWSE `MI_MARGN?selectType=MS` | 2005-01 | 官方註明以「前日餘額」為準，「今日餘額」為輔助 |
 | 融資餘額（上櫃） | A | TPEx `margin/balance`（個股明細，需加總）、OpenAPI `tpex_margin_trading_marginspot` | 2008 | |
 | 融資維持率（大盤） | D | 無官方數字 | — | 需要每檔融資餘額 × 收盤價 ÷ 融資金額，且融資金額要各檔逐日回推。第一版不做 |
-| 外資台指期多／空／淨未平倉 | A | TAIFEX OpenAPI（當日）、`futContractsDateDown` CSV（約 3 年）、FinMind `TaiwanFuturesInstitutionalInvestors`（2020 起確認可取得） | 見左 | 3 年以前要靠 FinMind，或從今天開始自行累積 |
-| 小台／微台全市場未平倉 | A | TAIFEX OpenAPI `DailyMarketReportFut`、`futDataDown` CSV | MTX 2010 以前、TX 2001 | 未平倉＝**一般時段**各月份 `OpenInterest` 加總（盤後時段該欄為 `-`） |
+| 外資台指期多／空／淨未平倉 | A | TAIFEX OpenAPI（當日）、`futContractsDateDown` CSV（滾動 3 年視窗：今天往前 3 年＋1 天；一次可查一年、全部商品；**結束日為當日且尚未公布時回日期錯誤**）、FinMind `TaiwanFuturesInstitutionalInvestors`（2020 起確認可取得） | 見左 | 3 年以前要靠 FinMind，或從今天開始自行累積 |
+| 小台／微台全市場未平倉 | A | TAIFEX OpenAPI `DailyMarketReportFut`、`futDataDown` CSV（一次最多一個月；同樣是 3 年視窗） | MTX 2010 以前、TX 2001 | 未平倉＝**一般時段**各月份 `OpenInterest` 加總（盤後時段該欄為 `-`） |
 | 小台／微台散戶多空比 | B | 由上兩項計算 | 受限於法人資料（約 3 年／FinMind 2020） | 微台 2024-07-29 才上市，歷史太短，不適合回測。公式見第 4 節 |
 | 台指期正逆價差 | B | 期貨近月收盤（`futDataDown`）－加權收盤 | 2001 | 期貨 13:45 收盤、現貨 13:30 收盤，時間差要標示；結算日附近要處理換月 |
 | 臺指選擇權 P/C Ratio | A | TAIFEX OpenAPI `PutCallRatio`、`pcRatioDown` CSV | 2008-01 | 成交量比與未平倉比都有 |
