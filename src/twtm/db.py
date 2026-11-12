@@ -20,9 +20,9 @@ from . import utc_now_iso
 DEFAULT_DB = Path(os.environ.get("TWTM_DB", "data/twtm.db"))
 
 # 數字越大越優先。低優先來源不能覆蓋高優先來源的資料。
-SOURCE_PRIORITY = {"taifex": 2, "finmind": 1}
+SOURCE_PRIORITY = {"taifex": 2, "twse": 2, "tpex": 2, "yahoo": 1, "finmind": 1}
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS meta (
@@ -89,6 +89,44 @@ CREATE TABLE IF NOT EXISTS fut_daily (
     source     TEXT NOT NULL,
     fetched_at TEXT NOT NULL,
     PRIMARY KEY (trade_date, product, contract, session)
+);
+
+-- ===== v2：價格資料（docs/mvp-spec-v1.2.md §7.1）=====
+
+-- 標的主檔：指數、個股、ETF、海外指數；未來的產業籃子也放這裡
+CREATE TABLE IF NOT EXISTS instrument (
+    symbol   TEXT PRIMARY KEY,   -- TAIEX, TPEX, 2330, ^SOX, ^IXIC
+    name     TEXT NOT NULL,
+    kind     TEXT NOT NULL,      -- index | stock | etf | basket
+    market   TEXT NOT NULL,      -- TWSE | TPEx | US
+    currency TEXT NOT NULL,      -- TWD | USD
+    listed   TEXT,
+    delisted TEXT
+);
+
+-- 日 K（未調整價格）。OHLC 與量能來自不同端點時，各自寫入對應欄位
+CREATE TABLE IF NOT EXISTS price_daily (
+    symbol     TEXT NOT NULL,
+    trade_date TEXT NOT NULL,    -- 該市場的交易日
+    open REAL, high REAL, low REAL, close REAL,
+    volume     INTEGER,          -- 股數；無資料為 NULL（費半）
+    turnover   REAL,             -- 成交金額（元，原幣別）
+    source     TEXT NOT NULL,
+    fetched_at TEXT NOT NULL,
+    PRIMARY KEY (symbol, trade_date)
+);
+
+-- 除權息（所有上市股票；還原價由此即時計算，不存表）
+CREATE TABLE IF NOT EXISTS corporate_action (
+    symbol     TEXT NOT NULL,
+    ex_date    TEXT NOT NULL,
+    action     TEXT NOT NULL,    -- dividend | rights | both
+    prev_close REAL,             -- 除權息前收盤價
+    ref_price  REAL,             -- 除權息參考價
+    value      REAL,             -- 權值＋息值
+    source     TEXT NOT NULL,
+    fetched_at TEXT NOT NULL,
+    PRIMARY KEY (symbol, ex_date, action)
 );
 """
 

@@ -7,7 +7,10 @@ name = "twtm"
 version = "0.1.0"
 description = "台股多空趨勢與資金風險監控系統"
 requires-python = ">=3.11"
-dependencies = ["requests>=2.31"]
+dependencies = [
+    "requests>=2.31",
+    "tzdata",  # Windows 的 Python 沒有 IANA 時區資料庫
+]
 
 [project.optional-dependencies]
 dev = ["pytest>=8"]

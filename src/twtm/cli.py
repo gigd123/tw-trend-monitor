@@ -3,8 +3,11 @@
     twtm futures update                       # 每日更新（最近 10 天）
     twtm futures backfill                     # 期交所 3 年視窗全部回補
     twtm futures backfill --source finmind --start 2018-01-01 --end 2023-12-31
-    twtm futures show --days 20               # 顯示外資淨未平倉與散戶多空比
+    twtm futures show --days 20               # 顯示外資淨未平倉與非法人多空比（估算）
     twtm futures status                       # 資料涵蓋範圍
+    twtm prices backfill                      # 加權、櫃買、台積電、除權息、費半、Nasdaq（2005 起）
+    twtm prices update                        # 每日更新
+    twtm prices check                         # 資料品質檢查
 """
 
 from __future__ import annotations
@@ -17,6 +20,8 @@ from datetime import date, timedelta
 from . import db, today_taipei
 from .http import Fetcher
 from .ingest import futures as ingest
+from .ingest import prices as ingest_prices
+from .metrics import prices as price_metrics
 from .metrics.futures import positions
 from .sources import PRODUCTS, taifex
 
@@ -57,7 +62,7 @@ def cmd_show(args, conn) -> int:
     for product in args.product or ["TX", "MTX", "TMF"]:
         rows = positions(conn, product, start=start)[-args.days:]
         print(f"\n== {PRODUCTS[product].name}（{product}）")
-        print(f"{'日期':<12}{'全市場OI':>10}{'外資淨OI':>10}{'散戶淨口數':>11}{'散戶多空比':>11}  來源")
+        print(f"{'日期':<12}{'全市場OI':>10}{'外資淨OI':>10}{'非法人淨口數':>10}{'非法人多空比':>10}  來源")
         for p in rows:
             ratio = "資料不全" if p.retail_ratio is None else f"{p.retail_ratio:+.2%}"
             print(f"{p.trade_date:<12}{_fmt_int(p.oi_total):>12}{_fmt_int(p.foreign_net):>12}"
@@ -75,7 +80,43 @@ def cmd_status(args, conn) -> int:
         ):
             print(f"  {r['product']:<4} {r['source']:<8} {r['lo']} ~ {r['hi']}  {r['n']} 個交易日")
     print(f"\n期交所可查詢視窗：{taifex.window_start(today_taipei())} 起")
+    print("「非法人多空比」＝非三大法人的估算值，不等於散戶帳戶實際多空比。")
     return 0
+
+
+def cmd_prices_backfill(args, conn) -> int:
+    only = set(args.only) if args.only else None
+    res = ingest_prices.backfill(conn, Fetcher(), args.start or ingest_prices.HISTORY_START,
+                                 args.end, only=only, force=args.force)
+    print(res)
+    return 1 if res.stopped_reason else 0
+
+
+def cmd_prices_update(args, conn) -> int:
+    res = ingest_prices.update(conn, Fetcher(), days=args.days)
+    print(res)
+    return 1 if res.stopped_reason else 0
+
+
+def _sample(xs: list[str], n: int = 5) -> str:
+    return ", ".join(xs[:n]) + (f" …（共 {len(xs)}）" if len(xs) > n else "")
+
+
+def cmd_prices_check(args, conn) -> int:
+    ingest_prices.seed_instruments(conn)
+    all_ok = True
+    for r in conn.execute("SELECT symbol, name, market FROM instrument ORDER BY market, symbol"):
+        rep = price_metrics.check(conn, r["symbol"], r["market"],
+                                  needs_turnover=r["market"] != "US")
+        all_ok &= rep.ok
+        flag = "OK " if rep.ok else "NG "
+        print(f"{flag}{r['symbol']:<6} {r['name']}：{rep.first} ~ {rep.last}，{rep.days} 日")
+        for label, xs in (("缺交易日", rep.missing_dates), ("缺 OHLC", rep.missing_ohlc),
+                          ("缺成交值", rep.missing_turnover), ("OHLC 矛盾", rep.ohlc_violations),
+                          ("單日變動 >10.5%（非除權息日）", rep.big_moves)):
+            if xs:
+                print(f"     {label}：{_sample(xs)}")
+    return 0 if all_ok else 1
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -105,6 +146,20 @@ def main(argv: list[str] | None = None) -> int:
 
     p = fut.add_parser("status", help="資料涵蓋範圍")
     p.set_defaults(func=cmd_status)
+
+    pr = sub.add_parser("prices", help="價格資料").add_subparsers(dest="cmd", required=True)
+    p = pr.add_parser("backfill", help="歷史回補（可中斷續跑）")
+    p.add_argument("--start", type=_date)
+    p.add_argument("--end", type=_date)
+    p.add_argument("--only", action="append",
+                   help="限定資料集，例如 twse.index_ohlc.TAIEX（可重複）")
+    p.add_argument("--force", action="store_true")
+    p.set_defaults(func=cmd_prices_backfill)
+    p = pr.add_parser("update", help="每日更新")
+    p.add_argument("--days", type=int, default=35)
+    p.set_defaults(func=cmd_prices_update)
+    p = pr.add_parser("check", help="資料品質檢查")
+    p.set_defaults(func=cmd_prices_check)
 
     args = ap.parse_args(argv)
     logging.basicConfig(level=logging.INFO if args.verbose else logging.WARNING,

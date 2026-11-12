@@ -37,7 +37,10 @@ class SourcePolicy:
 POLICIES: dict[str, SourcePolicy] = {
     "taifex": SourcePolicy(headers={"User-Agent": "Mozilla/5.0"}, min_interval=3.0),
     "finmind": SourcePolicy(headers={}, min_interval=2.0),
-    "twse": SourcePolicy(headers={"User-Agent": "Mozilla/5.0"}, min_interval=5.0),
+    # 證交所 WAF 擋下後要等一陣子才會放行，重試次數與退避都拉長
+    "twse": SourcePolicy(headers={"User-Agent": "Mozilla/5.0"}, min_interval=5.0,
+                         retries=6, backoff=20.0),
+    "tpex": SourcePolicy(headers={"User-Agent": "Mozilla/5.0"}, min_interval=2.0),
     "fred": SourcePolicy(headers={}, min_interval=1.0),
     "yahoo": SourcePolicy(headers={"User-Agent": "Mozilla/5.0"}, min_interval=1.0),
 }

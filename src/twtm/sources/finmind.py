@@ -110,3 +110,31 @@ def fetch(fetcher: Fetcher, dataset: str, product: str, start: date, end: date) 
     if token:
         params["token"] = token
     return fetcher.request("finmind", "GET", URL, params=params).content
+
+
+def parse_stock_price(body: bytes, symbol: str, fetched_at: str) -> list[dict]:
+    """TaiwanStockPrice：個股日行情（用於證交所 STOCK_DAY 2010 年以前）。"""
+    out = []
+    for r in _payload(body):
+        try:
+            if r["stock_id"] != symbol:
+                continue
+            out.append({
+                "symbol": symbol, "trade_date": r["date"],
+                "open": r["open"] or None, "high": r["max"] or None,
+                "low": r["min"] or None, "close": r["close"] or None,
+                "volume": r["Trading_Volume"], "turnover": float(r["Trading_money"]),
+                "source": "finmind", "fetched_at": fetched_at,
+            })
+        except KeyError as e:
+            raise ParseError(f"FinMind 個股資料缺欄位 {e}") from e
+    return out
+
+
+def fetch_stock_price(fetcher: Fetcher, symbol: str, start: date, end: date) -> bytes:
+    params = {"dataset": "TaiwanStockPrice", "data_id": symbol,
+              "start_date": start.isoformat(), "end_date": end.isoformat()}
+    token = os.environ.get("FINMIND_TOKEN")
+    if token:
+        params["token"] = token
+    return fetcher.request("finmind", "GET", URL, params=params).content
